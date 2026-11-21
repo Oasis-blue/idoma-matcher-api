@@ -66,7 +66,7 @@ function localPhoneticFallback(transcript, candidates) {
 }
 
 async function callGeminiModels(apiKey, prompt) {
-  const models = ["gemini-3.8-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+  const models = ["gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-2.0-flash"];
   let lastStatus = 503;
 
   for (const model of models) {
