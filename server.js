@@ -7,6 +7,31 @@ app.use(express.json({ limit: "2mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGeminiWithRetry(url, bodyPayload, maxRetries = 2) {
+  let lastRes = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyPayload)
+    });
+    lastRes = res;
+    if (res.ok || (res.status !== 503 && res.status !== 429)) {
+      return res;
+    }
+    if (attempt < maxRetries) {
+      const waitMs = 1500 * (attempt + 1);
+      console.warn(`Gemini HTTP ${res.status} on attempt ${attempt + 1}; retrying in ${waitMs}ms...`);
+      await sleep(waitMs);
+    }
+  }
+  return lastRes;
+}
+
 app.post("/api/idoma-match", async (req, res) => {
   console.log("POST /api/idoma-match received:", req.body?.transcript);
   try {
@@ -25,13 +50,13 @@ app.post("/api/idoma-match", async (req, res) => {
     const prompt = `You are a clinical Idoma language phonetic matcher.
 An automatic speech recognizer heard an Idoma speaker say: "${transcript}"
 
-ASR models transcribe Idoma phonetically and frequently make these exact distortions:
+ASR models transcribe Idoma phonetically and may output non-Latin scripts (such as Arabic/Urdu letters) as rough phonetic approximations of sounds, or make distortions like:
 1. Vowel shifts: o <-> u, e <-> i, a <-> e (e.g. "udi ya gam" is "Ode ya gam", "ipu" vs "epu").
 2. Dropped initial vowels/prefixes (e.g. "wangabo" for "Unwanga bo").
 3. Merged or split word boundaries (e.g. "odiyagam" or "udi ya gam" for "Ode ya gam").
 4. Doubled, dropped, or diacritic-shifted letters (e.g. "ikkpei" for "ikpeyi", "ikpẹ ikwo").
 
-Pick up to 3 best matching entries from the verified glossary JSON below by comparing syllable rhythm, consonant skeleton, and vowel similarity. Always include close phonetic candidates even if confidence is moderate (55-95).
+First mentally map the sound/phonetics of "${transcript}" to Latin/Idoma-like syllables, then pick up to 3 best matching entries from the verified glossary JSON below by comparing syllable rhythm, consonant skeleton, and vowel similarity. Always include close phonetic candidates when plausible (confidence 55-95).
 Return ONLY valid JSON:
 {"matches":[{"id":"exact_id_from_glossary","confidence":80}]}
 If nothing plausibly matches phonetically, return {"matches":[]}.
@@ -39,17 +64,13 @@ If nothing plausibly matches phonetically, return {"matches":[]}.
 Glossary:
 ${JSON.stringify(candidates)}`;
 
-    const apiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
-        })
-      }
-    );
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+    const bodyPayload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+    };
+
+    const apiRes = await callGeminiWithRetry(endpoint, bodyPayload, 2);
 
     if (!apiRes.ok) {
       const errText = await apiRes.text();
