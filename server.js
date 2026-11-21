@@ -14,6 +14,8 @@ app.post("/api/idoma-match", async (req, res) => {
       return res.json({ matches: [] });
     }
 
+  console.log("POST /api/idoma-match received:", req.body?.transcript);
+  try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ matches: [], error: "GEMINI_API_KEY missing" });
