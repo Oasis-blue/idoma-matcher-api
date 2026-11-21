@@ -8,14 +8,13 @@ app.use(express.json({ limit: "2mb" }));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.post("/api/idoma-match", async (req, res) => {
+  console.log("POST /api/idoma-match received:", req.body?.transcript);
   try {
     const { transcript, candidates } = req.body || {};
     if (!transcript || !Array.isArray(candidates) || candidates.length === 0) {
       return res.json({ matches: [] });
     }
 
-  console.log("POST /api/idoma-match received:", req.body?.transcript);
-  try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ matches: [], error: "GEMINI_API_KEY missing" });
@@ -44,11 +43,19 @@ ${JSON.stringify(candidates)}`;
       }
     );
 
+    if (!apiRes.ok) {
+      const errText = await apiRes.text();
+      return res.status(502).json({ matches: [], error: `Gemini API error (${apiRes.status}): ${errText}` });
+    }
+
     const data = await apiRes.json();
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{"matches":[]}';
     const parsed = JSON.parse(rawText);
-    return res.json({ matches: Array.isArray(parsed?.matches) ? parsed.matches : [] });
+    const matches = Array.isArray(parsed?.matches) ? parsed.matches : [];
+    console.log("POST /api/idoma-match returned:", matches.length, "matches");
+    return res.json({ matches });
   } catch (err) {
+    console.error("POST /api/idoma-match error:", err);
     return res.status(500).json({ matches: [], error: err.message });
   }
 });
