@@ -29,7 +29,7 @@ ASR models transcribe Idoma phonetically and frequently make these exact distort
 1. Vowel shifts: o <-> u, e <-> i, a <-> e (e.g. "udi ya gam" is "Ode ya gam", "ipu" vs "epu").
 2. Dropped initial vowels/prefixes (e.g. "wangabo" for "Unwanga bo").
 3. Merged or split word boundaries (e.g. "odiyagam" or "udi ya gam" for "Ode ya gam").
-4. Doubled or dropped letters (e.g. "ikkpei" for "ikpeyi").
+4. Doubled, dropped, or diacritic-shifted letters (e.g. "ikkpei" for "ikpeyi", "ikpẹ ikwo").
 
 Pick up to 3 best matching entries from the verified glossary JSON below by comparing syllable rhythm, consonant skeleton, and vowel similarity. Always include close phonetic candidates even if confidence is moderate (55-95).
 Return ONLY valid JSON:
@@ -40,7 +40,7 @@ Glossary:
 ${JSON.stringify(candidates)}`;
 
     const apiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
